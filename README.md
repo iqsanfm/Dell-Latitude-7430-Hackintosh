@@ -41,7 +41,7 @@ Daftar lengkap ada di [docs/KEXTS.md](docs/KEXTS.md).
 | --- | --- | --- |
 | Akselerasi grafis (Metal, Core Animation) | ✅ | WhateverXe + paket **WhateverXe Graphics** (dipasang setelah instalasi) |
 | Brightness layar + tombol | ✅ | BrightnessKeys |
-| Wi-Fi | ✅ | ForbiddenItlwm. Kadang tidak nyala sendiri saat boot (bug upstream), lihat [Masalah](docs/MASALAH.md#wi-fi-tidak-nyala-setelah-boot) |
+| Wi-Fi | ✅ | ForbiddenItlwm, Wi-Fi 6 (`itlwm_he=1`), ~345/348 Mbps di 5 GHz. Kadang tidak nyala sendiri saat boot (bug upstream), lihat [Masalah](docs/MASALAH.md#wi-fi-tidak-nyala-setelah-boot) |
 | AirDrop / AWDL | ✅ | Pakai set flag `-itlawdl*` dari ForbiddenItlwm |
 | Bluetooth (termasuk TWS/audio) | ✅ | IntelBluetoothFirmware + BlueToolFixup + BTLEAdvFixup |
 | Audio (speaker, headphone, mic) | ✅ | VoodooHDA di `/Library/Extensions`, **tidak** ada di EFI |

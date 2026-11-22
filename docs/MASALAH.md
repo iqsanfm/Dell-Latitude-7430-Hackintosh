@@ -9,6 +9,15 @@
 
 **Solusi:** pasang [`tools/wifi-boot`](../tools/wifi-boot) ([POST-INSTALL.md](POST-INSTALL.md#4-penjaga-wi-fi-saat-boot)).
 
+## Wi-Fi lambat (download jauh di bawah upload)
+
+**Gejala:** upload normal, tapi download cuma puluhan Mbps, padahal OS lain di laptop yang sama dapat ratusan.
+
+**Penyebab:** boot-arg `-itlawdlcoexmulti` membuat firmware membagi waktu radio antara kanal AWDL dan kanal router.
+
+**Solusi:** hapus `-itlawdlcoexmulti` dari boot-args, dan tambahkan `itlwm_he=1` untuk Wi-Fi 6. Config di repo ini
+sudah begitu. Detail dan hasil ukurnya ada di [BOOT-ARGS.md](BOOT-ARGS.md#kecepatan-wi-fi).
+
 ## Sleep tidak didukung
 
 WhateverXe belum mendukung siklus sleep/wake di Alder Lake-P, jadi sleep dimatikan dengan `pmset disablesleep 1`.

@@ -1329,7 +1329,7 @@
 				AAAAAAAAAAAAAAAAAAA=
 				</data>
 				<key>boot-args</key>
-				<string>-allow3d -disablegfxfirmware npci=0x2000 -s0ixnogpureset -s0ixecwake -btleadv -itlawdlcoexprobe -itlawdliface -itlawdlnativeup -itlawdlcoexrx -itlawdlcoextx -itlawdlcoexmulti -itlawdlcoexdata -itlawdlmitx -itlawdlelicit -itlawdlcaps -itlawdlsvcmerge -itlawdlawsync itlawdlintcoal=4 -itlawdlcoexbatx -itlawdlcoexpeerpause -itlawdlcoexbatrace itlawdltxqueue=4096 -btleadvbeta -igfxdvmt hcpower=4,2</string>
+				<string>-allow3d -disablegfxfirmware npci=0x2000 -s0ixnogpureset -s0ixecwake -btleadv -itlawdlcoexprobe -itlawdliface -itlawdlnativeup -itlawdlcoexrx -itlawdlcoextx -itlawdlcoexdata -itlawdlmitx -itlawdlelicit -itlawdlcaps -itlawdlsvcmerge -itlawdlawsync itlawdlintcoal=4 -itlawdlcoexbatx -itlawdlcoexpeerpause -itlawdlcoexbatrace itlawdltxqueue=4096 -btleadvbeta -igfxdvmt hcpower=4,2 itlwm_he=1</string>
 				<key>csr-active-config</key>
 				<data>
 				7w8AAA==
