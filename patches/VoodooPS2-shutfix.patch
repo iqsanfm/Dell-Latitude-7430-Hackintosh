@@ -1,0 +1,285 @@
+diff --git a/VoodooPS2Controller/VoodooPS2Controller.cpp b/VoodooPS2Controller/VoodooPS2Controller.cpp
+index 0dc60a5..35fc231 100644
+--- a/VoodooPS2Controller/VoodooPS2Controller.cpp
++++ b/VoodooPS2Controller/VoodooPS2Controller.cpp
+@@ -23,7 +23,9 @@
+ #define DISABLE_CLOCKS_IRQS_BEFORE_SLEEP 1
+ #define FULL_INIT_AFTER_WAKE 1
+ 
++#include <stdarg.h>
+ #include <IOKit/IOService.h>
++#include <IOKit/IODeviceTreeSupport.h>
+ #include <IOKit/IOWorkLoop.h>
+ #include <IOKit/IOCommandGate.h>
+ #include <IOKit/IOTimerEventSource.h>
+@@ -493,6 +495,232 @@ bool ApplePS2Controller::setMuxMode(bool enable)
+ 
+ // -- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+ 
++// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
++// shutfix: hand the 8042 back to the firmware in the state it gave it to us.
++// On Dell (EC-emulated 8042) a warm restart does not reset the controller, so
++// the BIOS / OpenCore picker inherits macOS's runtime state and the internal
++// keyboard stays dead until a cold boot.  Same idea as Linux i8042_controller_reset():
++// IRQs off, devices back to defaults, then restore the firmware command byte.
++// Only on restart.  Kill switch: boot-arg -ps2noshutfix.
++
++static UInt8 gShutfixFwCmd   = 0;
++static bool  gShutfixFwValid = false;
++static bool  gShutfixOff     = false;
++
++static int shutfixPollRead(UInt32 usTimeout)
++{
++  for (UInt32 i = 0; i < usTimeout; i++) {
++    UInt8 st = inb(kCommandPort);
++    if (st & kOutputReady) {
++      IODelay(kDataDelay);
++      return inb(kDataPort);
++    }
++    IODelay(1);
++  }
++  return -1;
++}
++
++static void shutfixFlush()
++{
++  for (int n = 0; n < 64 && (inb(kCommandPort) & kOutputReady); n++) {
++    IODelay(kDataDelay);
++    inb(kDataPort);
++    IODelay(kDataDelay);
++  }
++}
++
++void ApplePS2Controller::shutfixSaveFirmwareState()
++{
++  char tmp[16];
++  gShutfixOff = PE_parse_boot_argn("-ps2noshutfix", tmp, sizeof(tmp));
++  setProperty("ShutFix", gShutfixOff ? "off" : "on");
++  if (gShutfixOff)
++    return;
++
++  shutfixFlush();
++  writeCommandPort(kCP_GetCommandByte);
++  int a = shutfixPollRead(20000);
++  writeCommandPort(kCP_GetCommandByte);
++  int b = shutfixPollRead(20000);
++  if (a >= 0 && a == b) {
++    gShutfixFwCmd = (UInt8)a;
++    gShutfixFwValid = true;
++    setProperty("ShutFix FW CommandByte", gShutfixFwCmd, 8);
++  } else {
++    setProperty("ShutFix FW CommandByte", "unreadable");
++  }
++  IOLog("VoodooPS2 shutfix: firmware command byte %02x/%02x (%s)\n",
++        a & 0xFF, b & 0xFF, gShutfixFwValid ? "saved" : "not saved");
++}
++
++// --- diagnostics: leave a trace in NVRAM (survives the restart) ---
++static char gShutLog[384];
++static size_t gShutLen = 0;
++
++static void shutlog(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
++static void shutlog(const char *fmt, ...)
++{
++  if (gShutLen >= sizeof(gShutLog) - 1) return;
++  va_list ap; va_start(ap, fmt);
++  int n = vsnprintf(gShutLog + gShutLen, sizeof(gShutLog) - gShutLen, fmt, ap);
++  va_end(ap);
++  if (n > 0) { gShutLen += (size_t)n; if (gShutLen > sizeof(gShutLog) - 1) gShutLen = sizeof(gShutLog) - 1; }
++}
++
++static bool shutfixNvramWrite(const char *val, bool syncNow)
++{
++  IORegistryEntry *opt = IORegistryEntry::fromPath("/options", gIODTPlane);
++  if (!opt) return false;
++  bool ok = false;
++  OSData *d = OSData::withBytes(val, (unsigned)strlen(val));
++  if (d) { ok = opt->setProperty("ps2-shutfix", d); d->release(); }
++  if (syncNow) {
++    OSString *k = OSString::withCString("ps2-shutfix");
++    if (k) { opt->setProperty("IONVRAM-FORCESYNCNOW-PROPERTY", k); k->release(); }
++  }
++  opt->release();
++  return ok;
++}
++
++static void shutfixPublishLastMarker(IOService *svc)
++{
++  IORegistryEntry *opt = IORegistryEntry::fromPath("/options", gIODTPlane);
++  if (!opt) { svc->setProperty("ShutFix LastMarker", "no /options"); return; }
++  OSObject *o = opt->copyProperty("ps2-shutfix");
++  OSData *d = OSDynamicCast(OSData, o);
++  if (d && d->getLength()) {
++    char buf[400]; unsigned n = d->getLength(); if (n > sizeof(buf) - 1) n = sizeof(buf) - 1;
++    memcpy(buf, d->getBytesNoCopy(), n); buf[n] = 0;
++    svc->setProperty("ShutFix LastMarker", buf);
++  } else {
++    svc->setProperty("ShutFix LastMarker", "(none)");
++  }
++  OSSafeReleaseNULL(o);
++  opt->release();
++  svc->setProperty("ShutFix NVRAM write", shutfixNvramWrite("armed", false));
++}
++
++// read up to max bytes from the output buffer within usTimeout
++static int shutfixCollect(UInt8 *buf, int max, UInt32 usTimeout)
++{
++  int got = 0;
++  for (UInt32 t = 0; t < usTimeout && got < max; t += 10) {
++    if (inb(kCommandPort) & kOutputReady) {
++      IODelay(kDataDelay);
++      buf[got++] = inb(kDataPort);
++      continue;
++    }
++    IODelay(10);
++  }
++  return got;
++}
++
++static void shutlogBytes(const char *tag, const UInt8 *b, int n)
++{
++  shutlog(" %s=", tag);
++  if (!n) shutlog("-");
++  for (int i = 0; i < n; i++) shutlog("%s%02x", i ? "." : "", b[i]);
++}
++
++void ApplePS2Controller::shutfixRestoreGated()
++{
++  ++_ignoreInterrupts;
++  _hardwareOffline = true;          // no more queued requests, we are going down
++  _suppressTimeout = true;
++  UInt8 r[4]; int n;
++
++  shutlog(" st=%02x", inb(kCommandPort));
++
++  // 1. IRQs off, clocks on, translation on (like i8042_controller_reset)
++  shutfixFlush();
++  writeCommandPort(kCP_GetCommandByte);
++  int cur = shutfixPollRead(20000);
++  shutlog(" cur=%02x", cur & 0xFF);
++  UInt8 quiet = (cur >= 0 ? (UInt8)cur : (UInt8)(kCB_SystemFlag | kCB_TranslateMode));
++  quiet &= ~(kCB_EnableKeyboardIRQ | kCB_EnableMouseIRQ | kCB_DisableKeyboardClock | kCB_DisableMouseClock);
++  quiet |= kCB_TranslateMode;
++  writeCommandPort(kCP_SetCommandByte);
++  writeDataPort(quiet);
++  shutfixFlush();
++
++  // 2. leave active multiplexing mode if we turned it on
++  if (_muxPresent) {
++    setMuxMode(false);
++    shutfixFlush();
++    shutlog(" mux=off");
++  }
++
++  // 3. keyboard: full reset (expect FA AA)
++  writeDataPort(kDP_Reset);
++  n = shutfixCollect(r, 2, 1000000); shutlogBytes("kFF", r, n);
++  shutfixFlush();
++
++  // 4. aux: full reset (expect FA AA 00)
++  if (!_kbdOnly) {
++    writeCommandPort(kCP_TransmitToMouse);
++    writeDataPort(kDP_Reset);
++    n = shutfixCollect(r, 3, 1000000); shutlogBytes("aFF", r, n);
++    shutfixFlush();
++  }
++
++  // 5. controller self test (55) + keyboard port test (00)
++  writeCommandPort(kCP_TestController);
++  n = shutfixCollect(r, 1, 500000); shutlogBytes("AA", r, n);
++  shutfixFlush();
++  writeCommandPort(kCP_TestKeyboardPort);
++  n = shutfixCollect(r, 1, 200000); shutlogBytes("AB", r, n);
++  shutfixFlush();
++
++  // 6. restore the firmware's command byte, clocks on
++  UInt8 fw = gShutfixFwValid ? gShutfixFwCmd
++                             : (UInt8)(kCB_EnableKeyboardIRQ | kCB_SystemFlag | kCB_TranslateMode);
++  writeCommandPort(kCP_SetCommandByte);
++  writeDataPort(fw);
++  writeCommandPort(kCP_EnableKeyboardClock);
++  if (!_kbdOnly) writeCommandPort(kCP_EnableMouseClock);
++  shutfixFlush();
++  writeCommandPort(kCP_GetCommandByte);
++  int back = shutfixPollRead(20000);
++  shutlog(" fw=%02x back=%02x st=%02x", fw, back & 0xFF, inb(kCommandPort));
++  _suppressTimeout = false;
++}
++
++void ApplePS2Controller::systemWillShutdown(IOOptionBits specifier)
++{
++  if (!gShutfixOff) {
++    bool restart = (specifier == kIOMessageSystemWillRestart);
++    gShutLen = 0; gShutLog[0] = 0;
++    shutlog("v4 spec=%x", (unsigned)specifier);
++    if (restart && _cmdGate) {
++      shutfixNvramWrite(gShutLog, true);       // proof that we got here
++      _cmdGate->runAction(OSMemberFunctionCast(IOCommandGate::Action, this,
++                                               &ApplePS2Controller::shutfixRestoreGated));
++      shutlog(" done");
++      // v4: v3's Dell SMI reset (0xB2=0x73, same as Linux) still left kbd dead in
++      // F12, so force a PCH FULL reset (CF9 0x0E: drops SLP_S3/S4/S5, power-cycles
++      // rails ~ like Shut Down + power on; Linux cold reboot=pci uses the same).
++      // Kill switch: boot-arg -ps2noshutreset.
++      char tmp[8];
++      if (!PE_parse_boot_argn("-ps2noshutreset", tmp, sizeof(tmp))) {
++        IOSleep(300);                          // let same-depth halt workers finish
++        shutlog(" cf9");
++        shutfixNvramWrite(gShutLog, true);
++        IOSleep(100);
++        outb(0xCF9, 0x02);
++        IODelay(50);
++        outb(0xCF9, 0x0E);
++        IOSleep(2000);                         // still alive -> CF9 did not reset
++        shutlog("-ret");
++      }
++    } else {
++      shutlog(" skip");
++    }
++    shutfixNvramWrite(gShutLog, true);
++    IOLog("VoodooPS2 shutfix: %s\n", gShutLog);
++  }
++  super::systemWillShutdown(specifier);
++}
++
+ bool ApplePS2Controller::start(IOService * provider)
+ {
+   DEBUG_LOG("ApplePS2Controller::start entered...\n");
+@@ -522,6 +750,8 @@ bool ApplePS2Controller::start(IOService * provider)
+ 
+   PE_parse_boot_argn("ps2kbdonly", &_kbdOnly, sizeof(_kbdOnly));
+ 
++  shutfixSaveFirmwareState();
++
+   //
+   // Reset and clean the 8042 keyboard/mouse controller.
+   //
+@@ -695,6 +925,14 @@ bool ApplePS2Controller::start(IOService * provider)
+     propertyMatch->release();
+   }
+ 
++  if (!gShutfixOff)
++    shutfixPublishLastMarker(this);
++
++  if (gShutfixFwValid) {
++    UInt8 rt = setCommandByte(0, 0);
++    setProperty("ShutFix Runtime CommandByte", rt, 8);
++  }
++
+   DEBUG_LOG("ApplePS2Controller::start leaving.\n");
+   return true; // success
+ 
+diff --git a/VoodooPS2Controller/VoodooPS2Controller.h b/VoodooPS2Controller/VoodooPS2Controller.h
+index 793e200..f84eabc 100644
+--- a/VoodooPS2Controller/VoodooPS2Controller.h
++++ b/VoodooPS2Controller/VoodooPS2Controller.h
+@@ -343,6 +343,9 @@ public:
+   ApplePS2Controller* probe(IOService* provider, SInt32* score) override;
+   bool start(IOService * provider) override;
+   void stop(IOService * provider) override;
++  void systemWillShutdown(IOOptionBits specifier) override;
++  void shutfixRestoreGated();
++  void shutfixSaveFirmwareState();
+ 
+   IOWorkLoop * getWorkLoop() const override;
+ 

@@ -1,0 +1,146 @@
+diff --git a/VoodooInput/VoodooInputSimulator/VoodooInputSimulatorDevice.cpp b/VoodooInput/VoodooInputSimulator/VoodooInputSimulatorDevice.cpp
+index 3a52f02..42d5573 100644
+--- a/VoodooInput/VoodooInputSimulator/VoodooInputSimulatorDevice.cpp
++++ b/VoodooInput/VoodooInputSimulator/VoodooInputSimulatorDevice.cpp
+@@ -12,10 +12,28 @@
+ 
+ #include <IOKit/IOWorkLoop.h>
+ #include <IOKit/IOCommandGate.h>
++#include <pexpert/pexpert.h>
+ 
+ #define super IOHIDDevice
+ OSDefineMetaClassAndStructors(VoodooInputSimulatorDevice, IOHIDDevice);
+ 
++// jumpfix thresholds (MT2 units: X 0..8134, Y 0..5206)
++#define JUMPFIX_MIN_DIST       1200   // ~15% of pad width in one report
++#define JUMPFIX_MAX_SPEED_UPMS 80     // faster than this (units per ms) is not a real finger
++
++// Real Magic Trackpad 2 hands out a fresh identifier for every new contact.
++// Reusing the same one for a quick lift + re-touch lets macOS glue both strokes.
++UInt8 VoodooInputSimulatorDevice::allocIdent(UInt16 slot) {
++    for (int tries = 0; tries < 15; tries++) {
++        next_ident = (next_ident % 15) + 1;
++        bool used = false;
++        for (int s = 0; s < 15; s++)
++            if (s != slot && touch_active[s] && slot_ident[s] == next_ident) { used = true; break; }
++        if (!used) return next_ident;
++    }
++    return (UInt8)(slot + 1);
++}
++
+ 
+ const unsigned char report_descriptor[] = {0x05, 0x01, 0x09, 0x02, 0xa1, 0x01, 0x09, 0x01, 0xa1, 0x00, 0x05, 0x09, 0x19, 0x01, 0x29, 0x03, 0x15, 0x00, 0x25, 0x01, 0x85, 0x02, 0x95, 0x03, 0x75, 0x01, 0x81, 0x02, 0x95, 0x01, 0x75, 0x05, 0x81, 0x01, 0x05, 0x01, 0x09, 0x30, 0x09, 0x31, 0x15, 0x81, 0x25, 0x7f, 0x75, 0x08, 0x95, 0x02, 0x81, 0x06, 0x95, 0x04, 0x75, 0x08, 0x81, 0x01, 0xc0, 0xc0, 0x05, 0x0d, 0x09, 0x05, 0xa1, 0x01, 0x06, 0x00, 0xff, 0x09, 0x0c, 0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08, 0x95, 0x10, 0x85, 0x3f, 0x81, 0x22, 0xc0, 0x06, 0x00, 0xff, 0x09, 0x0c, 0xa1, 0x01, 0x06, 0x00, 0xff, 0x09, 0x0c, 0x15, 0x00, 0x26, 0xff, 0x00, 0x85, 0x44, 0x75, 0x08, 0x96, 0x6b, 0x05, 0x81, 0x00, 0xc0};
+ 
+@@ -118,8 +136,37 @@ void VoodooInputSimulatorDevice::constructReportGated(const VoodooInputEvent& mu
+             }
+         }
+ 
+-        finger_data.State = touch_active[touch_id] ? kTouchStateActive : kTouchStateStart;
+-        touch_active[touch_id] = transducer->isTransducerActive || transducer->isPhysicalButtonDown;
++        bool was_active = touch_active[touch_id];
++        bool now_active = transducer->isTransducerActive || transducer->isPhysicalButtonDown;
++        SInt16 fx = (SInt16)(scaled_x - (MT2_MAX_X / 2));
++        SInt16 fy = (SInt16)(scaled_y - (MT2_MAX_Y / 2)) * -1;
++        UInt64 now_ns = 0;
++        absolutetime_to_nanoseconds(timestamp, &now_ns);
++        bool jumped = false;
++
++        if (fix_enabled && was_active && now_active && !transducer->isPhysicalButtonDown) {
++            SInt32 dx = (SInt32)fx - last_x[touch_id], dy = (SInt32)fy - last_y[touch_id];
++            UInt64 dist2 = (UInt64)((SInt64)dx * dx + (SInt64)dy * dy);
++            UInt64 dt_ms = now_ns > last_ns[touch_id] ? (now_ns - last_ns[touch_id]) / 1000000 : 0;
++            UInt64 lim = JUMPFIX_MIN_DIST;
++            if (dt_ms * JUMPFIX_MAX_SPEED_UPMS > lim) lim = dt_ms * JUMPFIX_MAX_SPEED_UPMS;
++            if (dist2 > lim * lim) {
++                jumped = true;
++                jump_count++;
++                IOLog("VoodooInput jumpfix: id %u slot %u jump dx %d dy %d dt %llu ms -> lift + new touch (#%u)\n",
++                      slot_ident[touch_id], touch_id, dx, dy, dt_ms, jump_count);
++                setProperty("JumpFixCount", jump_count, 32);
++            }
++        }
++
++        if (fix_enabled && !was_active && now_active) {
++            slot_ident[touch_id] = allocIdent(touch_id);
++            if (fix_debug)
++                IOLog("VoodooInput jumpfix: slot %u start id %u at %d,%d\n", touch_id, slot_ident[touch_id], fx, fy);
++        }
++
++        finger_data.State = was_active ? kTouchStateActive : kTouchStateStart;
++        touch_active[touch_id] = now_active && !jumped;
+ 
+         finger_data.Finger = transducer->fingerType;
+ 
+@@ -139,7 +186,7 @@ void VoodooInputSimulatorDevice::constructReportGated(const VoodooInputEvent& mu
+             finger_data.Pressure = 120;
+         }
+         
+-        if (!transducer->isTransducerActive && !transducer->isPhysicalButtonDown) {
++        if (jumped || (!transducer->isTransducerActive && !transducer->isPhysicalButtonDown)) {
+             finger_data.State = kTouchStateStop;
+             finger_data.Size = 0x0;
+             finger_data.Pressure = 0x0;
+@@ -147,11 +194,20 @@ void VoodooInputSimulatorDevice::constructReportGated(const VoodooInputEvent& mu
+             finger_data.Touch_Major = 0;
+         }
+ 
+-        finger_data.X = (SInt16)(scaled_x - (MT2_MAX_X / 2));
+-        finger_data.Y = (SInt16)(scaled_y - (MT2_MAX_Y / 2)) * -1;
+-        
++        if (jumped) {
++            // end the old contact where it really was; the new spot starts fresh next report
++            finger_data.X = last_x[touch_id];
++            finger_data.Y = last_y[touch_id];
++        } else {
++            finger_data.X = fx;
++            finger_data.Y = fy;
++            last_x[touch_id] = fx;
++            last_y[touch_id] = fy;
++        }
++        last_ns[touch_id] = now_ns;
++
+         finger_data.Angle = 0x4; // pi/2
+-        finger_data.Identifier = touch_id + 1;
++        finger_data.Identifier = fix_enabled ? slot_ident[touch_id] : touch_id + 1;
+     }
+ 
+     if (input_active)
+@@ -214,6 +270,16 @@ bool VoodooInputSimulatorDevice::start(IOService* provider) {
+     input_report = (MAGIC_TRACKPAD_INPUT_REPORT *) input_report_buffer->getBytesNoCopy();
+ 
+     clock_get_uptime(&start_timestamp);
++
++    {
++        char tmp[8];
++        fix_enabled = !PE_parse_boot_argn("-vijumpoff", tmp, sizeof(tmp));
++        fix_debug = PE_parse_boot_argn("-vijumpdbg", tmp, sizeof(tmp));
++        setProperty("JumpFix", fix_enabled);
++        setProperty("JumpFixCount", 0ULL, 32);
++        IOLog("VoodooInput jumpfix: %s (min %d units, max %d units/ms)\n", fix_enabled ? "enabled" : "disabled",
++              JUMPFIX_MIN_DIST, JUMPFIX_MAX_SPEED_UPMS);
++    }
+     
+     engine = OSDynamicCast(VoodooInput, provider);
+     
+diff --git a/VoodooInput/VoodooInputSimulator/VoodooInputSimulatorDevice.hpp b/VoodooInput/VoodooInputSimulator/VoodooInputSimulatorDevice.hpp
+index 17eadb7..b6350ee 100644
+--- a/VoodooInput/VoodooInputSimulator/VoodooInputSimulatorDevice.hpp
++++ b/VoodooInput/VoodooInputSimulator/VoodooInputSimulatorDevice.hpp
+@@ -126,6 +126,17 @@ private:
+     AbsoluteTime start_timestamp {};
+     OSData* new_get_report_buffer {nullptr};
+     bool touch_active[15] {false};
++
++    // jumpfix: per-touch identifier rotation + teleport guard
++    bool fix_enabled {true};
++    bool fix_debug {false};
++    UInt8 slot_ident[15] {0};
++    UInt8 next_ident {0};
++    SInt16 last_x[15] {0};
++    SInt16 last_y[15] {0};
++    UInt64 last_ns[15] {0};
++    UInt32 jump_count {0};
++    UInt8 allocIdent(UInt16 slot);
+     IOWorkLoop* work_loop {nullptr};
+     IOCommandGate* command_gate {nullptr};
+     IOBufferMemoryDescriptor* input_report_buffer {nullptr};
