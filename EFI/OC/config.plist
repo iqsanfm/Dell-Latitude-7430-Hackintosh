@@ -1522,7 +1522,7 @@
 			</dict>
 			<dict>
 				<key>Arguments</key>
-				<string></string>
+				<string>--preserve-boot</string>
 				<key>Comment</key>
 				<string></string>
 				<key>Enabled</key>
