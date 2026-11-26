@@ -3,7 +3,7 @@
 Nilai `boot-args` di `config.plist` (NVRAM `7C436110-AB2A-4BBB-A880-FE41995C9F82`):
 
 ```
--allow3d -disablegfxfirmware npci=0x2000 -s0ixnogpureset -s0ixecwake -btleadv -itlawdlcoexprobe -itlawdliface -itlawdlnativeup -itlawdlcoexrx -itlawdlcoextx -itlawdlcoexdata -itlawdlmitx -itlawdlelicit -itlawdlcaps -itlawdlsvcmerge -itlawdlawsync itlawdlintcoal=4 -itlawdlcoexbatx -itlawdlcoexpeerpause -itlawdlcoexbatrace itlawdltxqueue=4096 -btleadvbeta -igfxdvmt hcpower=4,2 itlwm_he=1
+-allow3d -disablegfxfirmware npci=0x2000 -s0ixnogpureset -s0ixecwake -btleadv -itlawdlcoexprobe -itlawdliface -itlawdlnativeup -itlawdlcoexrx -itlawdlcoextx -itlawdlcoexdata -itlawdlmitx -itlawdlelicit -itlawdlcaps -itlawdlsvcmerge -itlawdlawsync itlawdlintcoal=4 -itlawdlcoexbatx -itlawdlcoexpeerpause -itlawdlcoexbatrace itlawdltxqueue=4096 -btleadvbeta -igfxdvmt hcpower=4,2 itlwm_he=1 -itlawdlnocoexmulti -wex-s0-csb-resync
 ```
 
 ## Grafis (WhateverXe)
@@ -13,6 +13,7 @@ Nilai `boot-args` di `config.plist` (NVRAM `7C436110-AB2A-4BBB-A880-FE41995C9F82
 | `-allow3d` | Wajib dari WhateverXe: mengaktifkan akselerasi 3D |
 | `-disablegfxfirmware` | Wajib dari WhateverXe: tidak memuat firmware GuC |
 | `-igfxdvmt` | DVMT BIOS tetap 60 MB, jadi stolen memory di-patch lewat `DeviceProperties` |
+| `-wex-s0-csb-resync` | Butuh patch [`WhateverXe-csb-resync`](../patches/WhateverXe-csb-resync.patch). State CSB GPU dipertahankan saat bangun dari Deep Idle (lihat [SLEEP.md](SLEEP.md)) |
 
 ## Sistem
 
@@ -49,7 +50,8 @@ Penjelasan per flag ada di dokumentasi ForbiddenItlwm (`docs/BOOT-FLAGS.md`).
 | --- | --- |
 | `itlwm_he=1` | Menyalakan 802.11ax (Wi-Fi 6) di ForbiddenItlwm. Default mati |
 
-**`-itlawdlcoexmulti` tidak dipakai.** Flag ini membuat listener AWDL di kanalnya sendiri (misalnya ch149), lalu
+**`-itlawdlcoexmulti` tidak dipakai.** Sejak ForbiddenItlwm 0.7.0-alpha.2 mode ini **menyala secara default**, jadi
+harus dimatikan secara eksplisit dengan `-itlawdlnocoexmulti`. Flag ini membuat listener AWDL di kanalnya sendiri (misalnya ch149), lalu
 firmware membagi waktu radio antara kanal itu dan kanal router. Selama radio ada di kanal AWDL, frame dari router
 hilang, jadi download jatuh. Di 5 GHz (router ch161, 80 MHz), Google speed test:
 

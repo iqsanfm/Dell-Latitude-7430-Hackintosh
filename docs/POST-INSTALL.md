@@ -56,7 +56,7 @@ Log ada di `/var/log/xe-wifi-boot.log`, snapshot diagnostik di `/var/log/xe-wifi
 
 ## 5. Power management
 
-Sleep dimatikan karena WhateverXe belum mendukung sleep di Alder Lake-P:
+Sleep dimatikan secara default karena masih eksperimental ([SLEEP.md](SLEEP.md)):
 
 ```sh
 sudo pmset -a disablesleep 1

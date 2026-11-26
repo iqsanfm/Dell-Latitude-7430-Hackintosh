@@ -18,10 +18,16 @@
 **Solusi:** hapus `-itlawdlcoexmulti` dari boot-args, dan tambahkan `itlwm_he=1` untuk Wi-Fi 6. Config di repo ini
 sudah begitu. Detail dan hasil ukurnya ada di [BOOT-ARGS.md](BOOT-ARGS.md#kecepatan-wi-fi).
 
-## Sleep tidak didukung
+## Sleep masih eksperimental
 
-WhateverXe belum mendukung siklus sleep/wake di Alder Lake-P, jadi sleep dimatikan dengan `pmset disablesleep 1`.
-Lid dan display sleep tetap jalan.
+Sleep (Deep Idle) sudah bisa masuk dan bangun dengan WhateverXe + patch `csb-resync`, tapi belum cukup dites untuk
+dipakai sehari-hari, jadi default-nya tetap `pmset disablesleep 1`. Status, hasil tes, dan cara mencobanya ada di
+[SLEEP.md](SLEEP.md).
+
+## Wi-Fi baru tersambung ±1 menit setelah bangun dari sleep
+
+Setelah bangun, ForbiddenItlwm melaporkan interface *OFF* selama ±20 detik, lalu tersambung sendiri dalam 40–60 detik.
+Belum ada solusi. Tunggu saja, atau matikan lalu nyalakan Wi-Fi dari Control Center.
 
 ## Lid tidak terbaca
 

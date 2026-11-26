@@ -592,7 +592,7 @@
 				<key>BundlePath</key>
 				<string>WhateverXe.kext</string>
 				<key>Comment</key>
-				<string>WhateverXe 0.8.3 - Akselerasi Iris Xe (ADL-P)</string>
+				<string>WhateverXe 0.8.5 + patch csb-resync - Akselerasi Iris Xe (ADL-P), wake Deep Idle</string>
 				<key>Enabled</key>
 				<true/>
 				<key>ExecutablePath</key>
@@ -646,7 +646,7 @@
 				<key>BundlePath</key>
 				<string>BTLEAdvFixup.kext</string>
 				<key>Comment</key>
-				<string>BTLEAdvFixup 0.9.3 - BLE advertising (AirDrop/Handoff)</string>
+				<string>BTLEAdvFixup 0.9.8 - BLE advertising (AirDrop/Handoff)</string>
 				<key>Enabled</key>
 				<true/>
 				<key>ExecutablePath</key>
@@ -844,7 +844,7 @@
 				<key>BundlePath</key>
 				<string>VoodooRMI.kext</string>
 				<key>Comment</key>
-				<string>VoodooRMI 1.4.3 - Trackpad Synaptics RMI</string>
+				<string>VoodooRMI 1.4.3 - Trackpad Synaptics RMI (patch dwt: abaikan sentuhan saat ngetik)</string>
 				<key>Enabled</key>
 				<true/>
 				<key>ExecutablePath</key>
@@ -986,6 +986,24 @@
 				<key>Arch</key>
 				<string>x86_64</string>
 				<key>BundlePath</key>
+				<string>NVMeFix.kext</string>
+				<key>Comment</key>
+				<string>NVMeFix 1.1.4 - APST hemat daya NVMe (matikan: -nvmefoff)</string>
+				<key>Enabled</key>
+				<true/>
+				<key>ExecutablePath</key>
+				<string>Contents/MacOS/NVMeFix</string>
+				<key>MaxKernel</key>
+				<string></string>
+				<key>MinKernel</key>
+				<string>18.0.0</string>
+				<key>PlistPath</key>
+				<string>Contents/Info.plist</string>
+			</dict>
+			<dict>
+				<key>Arch</key>
+				<string>x86_64</string>
+				<key>BundlePath</key>
 				<string>USBToolBox.kext</string>
 				<key>Comment</key>
 				<string>USBToolBox  - Peta USB</string>
@@ -1024,7 +1042,7 @@
 				<key>BundlePath</key>
 				<string>ForbiddenItlwm.kext</string>
 				<key>Comment</key>
-				<string>ForbiddenItlwm 0.6.0 - Wi-Fi Intel AX211 + AirDrop</string>
+				<string>ForbiddenItlwm 0.7.0-alpha.4 - Wi-Fi Intel AX211 + AirDrop</string>
 				<key>Enabled</key>
 				<true/>
 				<key>ExecutablePath</key>
@@ -1042,7 +1060,7 @@
 				<key>BundlePath</key>
 				<string>S0ixStandby.kext</string>
 				<key>Comment</key>
-				<string>S0ixStandby 0.5.4 - S0ix / Deep Idle</string>
+				<string>S0ixStandby 0.5.15 - S0ix / Deep Idle</string>
 				<key>Enabled</key>
 				<true/>
 				<key>ExecutablePath</key>
@@ -1079,7 +1097,7 @@
 		<dict>
 			<key>Cpuid1Data</key>
 			<data>
-			VQYKAAAAgAAAAAAAAAAAAA==
+			5QYHAAAAgAAAAAAAAAAAAA==
 			</data>
 			<key>Cpuid1Mask</key>
 			<data>
@@ -1329,7 +1347,7 @@
 				AAAAAAAAAAAAAAAAAAA=
 				</data>
 				<key>boot-args</key>
-				<string>-allow3d -disablegfxfirmware npci=0x2000 -s0ixnogpureset -s0ixecwake -btleadv -itlawdlcoexprobe -itlawdliface -itlawdlnativeup -itlawdlcoexrx -itlawdlcoextx -itlawdlcoexdata -itlawdlmitx -itlawdlelicit -itlawdlcaps -itlawdlsvcmerge -itlawdlawsync itlawdlintcoal=4 -itlawdlcoexbatx -itlawdlcoexpeerpause -itlawdlcoexbatrace itlawdltxqueue=4096 -btleadvbeta -igfxdvmt hcpower=4,2 itlwm_he=1</string>
+				<string>-allow3d -disablegfxfirmware npci=0x2000 -s0ixnogpureset -s0ixecwake -btleadv -itlawdlcoexprobe -itlawdliface -itlawdlnativeup -itlawdlcoexrx -itlawdlcoextx -itlawdlcoexdata -itlawdlmitx -itlawdlelicit -itlawdlcaps -itlawdlsvcmerge -itlawdlawsync itlawdlintcoal=4 -itlawdlcoexbatx -itlawdlcoexpeerpause -itlawdlcoexbatrace itlawdltxqueue=4096 -btleadvbeta -igfxdvmt hcpower=4,2 itlwm_he=1 -itlawdlnocoexmulti -wex-s0-csb-resync</string>
 				<key>csr-active-config</key>
 				<data>
 				7w8AAA==

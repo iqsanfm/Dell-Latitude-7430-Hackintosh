@@ -1,0 +1,277 @@
+diff --git a/VoodooRMI/Functions/Input/RMITrackpadFunction.cpp b/VoodooRMI/Functions/Input/RMITrackpadFunction.cpp
+index b0fcd65..4068c6d 100644
+--- a/VoodooRMI/Functions/Input/RMITrackpadFunction.cpp
++++ b/VoodooRMI/Functions/Input/RMITrackpadFunction.cpp
+@@ -11,6 +11,7 @@
+ #include "RMILogging.h"
+ #include "RMIMessages.h"
+ #include <IOKit/IOLib.h>
++#include <pexpert/pexpert.h>
+ #include "VoodooInputMultitouch/VoodooInputTransducer.h"
+ 
+ OSDefineMetaClassAndStructors(RMITrackpadFunction, RMIFunction)
+@@ -72,6 +73,16 @@ bool RMITrackpadFunction::start(IOService *provider)
+              0, 0,
+              data.maxX, trackpointRejectHeight);
+     
++    // [dwt] boot-args: -rmidwtoff, rmidwt1=<ms>, rmidwt2=<ms>, rmidwtmove=<per-mille of width>
++    {
++        UInt32 v; char flag[8];
++        if (PE_parse_boot_argn("-rmidwtoff", flag, sizeof(flag))) dwtEnabled = false;
++        if (PE_parse_boot_argn("rmidwt1", &v, sizeof(v)) && v <= 5000) dwtTimeout1 = v;
++        if (PE_parse_boot_argn("rmidwt2", &v, sizeof(v)) && v <= 5000) dwtTimeout2 = v;
++        if (PE_parse_boot_argn("rmidwtmove", &v, sizeof(v)) && v <= 1000) dwtReleaseMove = v;
++    }
++    dwtPublish();
++
+     // VoodooPS2 keyboard notifs
+     setProperty("RM,deliverNotifications", kOSBooleanTrue);
+     
+@@ -103,6 +114,9 @@ IOReturn RMITrackpadFunction::message(UInt32 type, IOService *provider, void *ar
+             lastKeyboardTS = *((uint64_t*) argument);
+             invalidateFingers();
+             break;
++        case kKeyboardKeyPressed:
++            if (argument) dwtKey((const RMIPS2KeyInfo *) argument);
++            break;
+         case kKeyboardGetTouchStatus: {
+             bool *result = (bool *) argument;
+             *result = trackpadEnable;
+@@ -116,6 +130,93 @@ IOReturn RMITrackpadFunction::message(UInt32 type, IOService *provider, void *ar
+     return kIOReturnSuccess;
+ }
+ 
++/*
++ * [dwt] Port of libinput tp_keyboard_event(): only real typing keys arm the
++ * timer; modifiers (incl. Tab/Caps Lock) never do and, while held, keep the
++ * next key from arming it (Cmd+C, Ctrl+click). F-keys, arrows, navigation,
++ * keypad and media keys are ignored (libinput: keycode >= KEY_F1).
++ * Keys are macOS/ADB virtual key codes as sent by VoodooPS2Keyboard.
++ */
++static int dwtModBit(UInt16 code) {
++    switch (code) {
++        case 0x30: return 0;  // tab
++        case 0x36: return 1;  // right command
++        case 0x37: return 2;  // command
++        case 0x38: return 3;  // shift
++        case 0x39: return 4;  // caps lock
++        case 0x3a: return 5;  // option
++        case 0x3b: return 6;  // control
++        case 0x3c: return 7;  // right shift
++        case 0x3d: return 8;  // right option
++        case 0x3e: return 9;  // right control
++        case 0x3f: return 10; // fn
++        default: return -1;
++    }
++}
++
++static bool dwtIsTypingKey(UInt16 code) {
++    return code < 0x30 || code == 0x31 || code == 0x32 || code == 0x33 || code == 0x35;
++}
++
++void RMITrackpadFunction::dwtKey(const RMIPS2KeyInfo *info) {
++    int bit = dwtModBit(info->adbKeyCode);
++    if (bit >= 0) {
++        if (info->goingDown) dwtModMask |= (1 << bit);
++        else dwtModMask &= ~(1 << bit);
++        return;
++    }
++    if (!info->goingDown || !dwtEnabled || !dwtIsTypingKey(info->adbKeyCode))
++        return;
++
++    uint64_t now = info->time;
++    UInt32 timeout;
++    if (now >= dwtExpire) {
++        if (dwtModMask)             // shortcut, not typing
++            return;
++        timeout = dwtTimeout1;
++        dwtTriggers++;
++    } else {
++        timeout = dwtTimeout2;
++    }
++    dwtLastPress = now;
++    dwtExpire = now + (uint64_t) timeout * MILLI_TO_NANO;
++}
++
++void RMITrackpadFunction::dwtPublish() {
++    dwtDirty = false;
++    OSDictionary *d = OSDictionary::withCapacity(8);
++    if (!d) return;
++    auto put = [d](const char *k, UInt64 v) {
++        OSNumber *n = OSNumber::withNumber(v, 32);
++        if (n) { d->setObject(k, n); n->release(); }
++    };
++    d->setObject("Enabled", dwtEnabled ? kOSBooleanTrue : kOSBooleanFalse);
++    put("Timeout1", dwtTimeout1);
++    put("Timeout2", dwtTimeout2);
++    put("ReleaseMove", dwtReleaseMove);
++    put("Triggers", dwtTriggers);
++    put("Blocked", dwtBlocked);
++    put("Released", dwtReleased);
++    put("LastBlockMsAfterKey", dwtLastBlockMs);
++    setProperty("DWT", d);
++    d->release();
++}
++
++// [dwt] runtime tuning: {"DWTEnabled"=bool, "DWTTimeout1"=ms, "DWTTimeout2"=ms, "DWTReleaseMove"=per-mille}
++IOReturn RMITrackpadFunction::setProperties(OSObject *properties) {
++    OSDictionary *dict = OSDynamicCast(OSDictionary, properties);
++    if (!dict) return kIOReturnBadArgument;
++    bool any = false;
++    if (OSBoolean *b = OSDynamicCast(OSBoolean, dict->getObject("DWTEnabled"))) { dwtEnabled = b->isTrue(); any = true; }
++    if (OSNumber *n = OSDynamicCast(OSNumber, dict->getObject("DWTTimeout1"))) { if (n->unsigned32BitValue() <= 5000) dwtTimeout1 = n->unsigned32BitValue(); any = true; }
++    if (OSNumber *n = OSDynamicCast(OSNumber, dict->getObject("DWTTimeout2"))) { if (n->unsigned32BitValue() <= 5000) dwtTimeout2 = n->unsigned32BitValue(); any = true; }
++    if (OSNumber *n = OSDynamicCast(OSNumber, dict->getObject("DWTReleaseMove"))) { if (n->unsigned32BitValue() <= 1000) dwtReleaseMove = n->unsigned32BitValue(); any = true; }
++    if (!any) return kIOReturnUnsupported;
++    if (!dwtEnabled) dwtExpire = 0;
++    dwtDirty = true;
++    return kIOReturnSuccess;
++}
++
+ bool RMITrackpadFunction::shouldDiscardReport(AbsoluteTime timestamp)
+ {
+     return !trackpadEnable;
+@@ -184,7 +285,40 @@ void RMITrackpadFunction::handleReport(RMI2DSensorReport *report)
+         transducer.currentCoordinates.y = data.maxY - obj.y;
+         
+         switch (fingerState[i]) {
++            case RMI_FINGER_DWT: {
++                // [dwt] libinput tp_palm_detect_dwt_triggered(): a touch that began
++                // while typing stays ignored; once typing stops it is released only
++                // if it began after the last key press. Unlike libinput we also make
++                // it move first, so a brush that started while typing can never
++                // become a tap-to-click on macOS.
++                if (report->timestamp < dwtExpire || dwtTouchBegin[i] <= dwtLastPress)
++                    break;
++                if (!dwtArmed[i]) {
++                    dwtArmed[i] = true;
++                    dwtX[i] = obj.x;
++                    dwtY[i] = obj.y;
++                    break;
++                }
++                int thr = (int) data.maxX * (int) dwtReleaseMove / 1000;
++                if (abs((int) obj.x - (int) dwtX[i]) > thr || abs((int) obj.y - (int) dwtY[i]) > thr) {
++                    fingerState[i] = RMI_FINGER_VALID;
++                    transducer.previousCoordinates = transducer.currentCoordinates;
++                    dwtReleased++;
++                    dwtDirty = true;
++                }
++                break;
++            }
+             case RMI_FINGER_LIFTED:
++                dwtTouchBegin[i] = report->timestamp;
++                if (dwtEnabled && report->timestamp < dwtExpire) {
++                    fingerState[i] = RMI_FINGER_DWT;
++                    dwtArmed[i] = false;
++                    dwtBlocked++;
++                    dwtLastBlockMs = (UInt32) ((report->timestamp - dwtLastPress) / MILLI_TO_NANO);
++                    dwtDirty = true;
++                    transducer.previousCoordinates = transducer.currentCoordinates;
++                    break;
++                }
+                 fingerState[i] = RMI_FINGER_STARTED_IN_ZONE;
+                 // Current position is starting position, make sure velocity is zero
+                 transducer.previousCoordinates = transducer.currentCoordinates;
+@@ -237,7 +371,8 @@ void RMITrackpadFunction::handleReport(RMI2DSensorReport *report)
+                 break;
+         }
+         
+-        transducer.isTransducerActive = fingerState[i] != RMI_FINGER_STARTED_IN_ZONE && fingerState[i] != RMI_FINGER_LIFTED;
++        transducer.isTransducerActive = fingerState[i] != RMI_FINGER_STARTED_IN_ZONE && fingerState[i] != RMI_FINGER_LIFTED &&
++                                        fingerState[i] != RMI_FINGER_DWT;
+         
+         IOLogDebug("Finger num: %d (%s) (%d, %d) [Z: %u WX: %u WY: %u FingerType: %d Pressure: %d]",
+                    i,
+@@ -284,6 +419,8 @@ void RMITrackpadFunction::handleReport(RMI2DSensorReport *report)
+     inputEvent.timestamp = report->timestamp;
+     
+     sendVoodooInputPacket(kIOMessageVoodooInputMessage, &inputEvent);
++    if (dwtDirty)
++        dwtPublish();
+     for (int i = 0; i < VOODOO_INPUT_MAX_TRANSDUCERS; i++) {
+         inputEvent.transducers[i].isTransducerActive = false;
+     }
+@@ -364,7 +501,8 @@ void RMITrackpadFunction::invalidateFingers() {
+         VoodooInputTransducer &finger = inputEvent.transducers[i];
+         
+         if (fingerState[i] == RMI_FINGER_LIFTED ||
+-            fingerState[i] == RMI_FINGER_INVALID)
++            fingerState[i] == RMI_FINGER_INVALID ||
++            fingerState[i] == RMI_FINGER_DWT)
+             continue;
+         
+         if (checkInZone(finger) > 0)
+diff --git a/VoodooRMI/Functions/Input/RMITrackpadFunction.hpp b/VoodooRMI/Functions/Input/RMITrackpadFunction.hpp
+index 6523103..a3e378e 100644
+--- a/VoodooRMI/Functions/Input/RMITrackpadFunction.hpp
++++ b/VoodooRMI/Functions/Input/RMITrackpadFunction.hpp
+@@ -15,6 +15,7 @@
+ #include <LinuxCompat.h>
+ #include <RMIConfiguration.hpp>
+ #include "VoodooInputMultitouch/VoodooInputMessages.h"
++#include "RMIMessages.h"
+ 
+ #define MAX_FINGERS 10
+ 
+@@ -33,6 +34,7 @@ enum finger_state {
+     RMI_FINGER_STARTED_IN_ZONE, // Finger put down in palm rejection zone
+     RMI_FINGER_VALID,           // Valid finger to be sent to macOS
+     RMI_FINGER_FORCE_TOUCH,     // Force touch
++    RMI_FINGER_DWT,             // [dwt] Touch began while typing, ignored (libinput disable-while-typing)
+ };
+ 
+ struct Rmi2DSensorData {
+@@ -78,6 +80,7 @@ class RMITrackpadFunction : public RMIFunction {
+ public:
+     bool start(IOService *provider) override;
+     IOReturn message(UInt32 type, IOService *provider, void *argument = 0) override;
++    IOReturn setProperties(OSObject *properties) override;
+     
+     const Rmi2DSensorData &getData() const;
+     
+@@ -99,6 +102,21 @@ private:
+     
+     uint64_t lastKeyboardTS {0}, lastTrackpointTS {0};
+ 
++    // [dwt] disable-while-typing, port of libinput's touchpad DWT
++    bool dwtEnabled {true};
++    UInt32 dwtTimeout1 {200};      // ms after the first key press
++    UInt32 dwtTimeout2 {500};      // ms after a key press while already typing
++    UInt32 dwtReleaseMove {15};    // per-mille of maxX a late touch must move before it is released
++    volatile uint64_t dwtExpire {0}, dwtLastPress {0};
++    volatile UInt16 dwtModMask {0};
++    uint64_t dwtTouchBegin[MAX_FINGERS] {};
++    UInt16 dwtX[MAX_FINGERS] {}, dwtY[MAX_FINGERS] {};
++    bool dwtArmed[MAX_FINGERS] {};
++    UInt32 dwtTriggers {0}, dwtBlocked {0}, dwtReleased {0}, dwtLastBlockMs {0};
++    bool dwtDirty {true};
++    void dwtKey(const RMIPS2KeyInfo *info);
++    void dwtPublish();
++
+     MT2FingerType getFingerType();
+     size_t checkInZone(VoodooInputTransducer &obj);
+     void setThumbFingerType(size_t fingers, RMI2DSensorReport *report);
+diff --git a/VoodooRMI/Utility/RMIMessages.h b/VoodooRMI/Utility/RMIMessages.h
+index 940fa76..413354b 100644
+--- a/VoodooRMI/Utility/RMIMessages.h
++++ b/VoodooRMI/Utility/RMIMessages.h
+@@ -13,10 +13,19 @@ enum {
+     kKeyboardSetTouchStatus = iokit_vendor_specific_msg(100),   // set disable/enable trackpad (data is bool*)
+     kKeyboardGetTouchStatus = iokit_vendor_specific_msg(101),   // get disable/enable trackpad (data is bool*)
+     kKeyboardKeyPressTime = iokit_vendor_specific_msg(110),      // notify of timestamp a non-modifier key was pressed (data is uint64_t*)
++    kKeyboardKeyPressed = iokit_vendor_specific_msg(102),        // [dwt] every key down/up (data is RMIPS2KeyInfo*)
+     // From SMBus to PS2 Trackpad
+     kPS2M_SMBusStart = iokit_vendor_specific_msg(152),          // Reset, disable PS2 comms to not interfere with SMBus comms
+ };
+ 
++// [dwt] Same layout as VoodooPS2 PS2KeyInfo
++typedef struct RMIPS2KeyInfo {
++    uint64_t time;
++    UInt16  adbKeyCode;
++    bool    goingDown;
++    bool    eatKey;
++} RMIPS2KeyInfo;
++
+ // RMI Bus message types
+ enum {
+     kHandleRMIClickpadSet = iokit_vendor_specific_msg(2046),

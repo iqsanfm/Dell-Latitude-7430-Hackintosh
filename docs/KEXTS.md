@@ -10,10 +10,10 @@ dimuat sebelum plugin-nya.
 | Lilu | 1.7.3 | Fondasi semua plugin | [acidanthera/Lilu](https://github.com/acidanthera/Lilu) |
 | AMFIAnchor | 0.1.2 | AMFI tetap aktif untuk WhateverXe Graphics | [b00t0x/AMFIAnchor](https://github.com/b00t0x/AMFIAnchor) |
 | AMFIAnchorInjector | 1.0.0 | Sertifikat WhateverXe-Graphics | [b00t0x/AMFIAnchor](https://github.com/b00t0x/AMFIAnchor) |
-| WhateverXe | 0.8.3 | Akselerasi Iris Xe (Alder Lake-P) | [b00t0x/WhateverXe](https://github.com/b00t0x/WhateverXe) |
+| WhateverXe | 0.8.5 | Akselerasi Iris Xe (Alder Lake-P) | [b00t0x/WhateverXe](https://github.com/b00t0x/WhateverXe) + **patch** |
 | IntelBluetoothFirmware | 2.5.1 | Firmware Bluetooth AX211 | [OpenIntelWireless/IntelBluetoothFirmware](https://github.com/OpenIntelWireless/IntelBluetoothFirmware) |
 | BlueToolFixup | 2.7.3 | Bluetooth pihak ketiga di macOS 12+ | [acidanthera/BrcmPatchRAM](https://github.com/acidanthera/BrcmPatchRAM) |
-| BTLEAdvFixup | 0.9.3 | BLE advertising (AirDrop, Handoff) | [retropineaple/ForbiddenItlwm](https://github.com/retropineaple/ForbiddenItlwm) |
+| BTLEAdvFixup | 0.9.8 | BLE advertising (AirDrop, Handoff) | [retropineaple/ForbiddenItlwm](https://github.com/retropineaple/ForbiddenItlwm) |
 | VirtualSMC | 1.3.8 | Emulasi SMC | [acidanthera/VirtualSMC](https://github.com/acidanthera/VirtualSMC) |
 | BrightnessKeys | 1.0.3 | Tombol brightness | [acidanthera/BrightnessKeys](https://github.com/acidanthera/BrightnessKeys) |
 | RestrictEvents | 1.1.7 | Nama CPU di "About This Mac" + patch kecil | [acidanthera/RestrictEvents](https://github.com/acidanthera/RestrictEvents) |
@@ -24,13 +24,14 @@ dimuat sebelum plugin-nya.
 | VoodooI2CServices | 1.0 | Layanan VoodooI2C | [VoodooI2C/VoodooI2C](https://github.com/VoodooI2C/VoodooI2C) |
 | VoodooInput | 1.1.7 | Multitouch | [acidanthera/VoodooInput](https://github.com/acidanthera/VoodooInput) + **patch** |
 | VoodooI2C | 2.9.1 | Bus I2C | [VoodooI2C/VoodooI2C](https://github.com/VoodooI2C/VoodooI2C) |
-| VoodooRMI + RMII2C | 1.4.3 | Trackpad Synaptics RMI lewat I2C | [VoodooSMBus/VoodooRMI](https://github.com/VoodooSMBus/VoodooRMI) |
+| VoodooRMI + RMII2C | 1.4.3 | Trackpad Synaptics RMI lewat I2C | [VoodooSMBus/VoodooRMI](https://github.com/VoodooSMBus/VoodooRMI) + **patch** |
 | VoodooI2CHID | 1.0 | Perangkat I2C HID | VoodooI2C |
 | VoodooPS2Controller (+ Keyboard, Mouse, Trackpad) | 2.3.8 | Keyboard PS/2 | [acidanthera/VoodooPS2](https://github.com/acidanthera/VoodooPS2) + **patch** |
 | XHCI-unsupported | 0.9.2 | Kontroler USB seri 600 | [RehabMan/OS-X-USB-Inject-All](https://github.com/RehabMan/OS-X-USB-Inject-All) |
+| NVMeFix | 1.1.4 | APST (hemat daya) NVMe SK hynix. Matikan dengan `-nvmefoff` | [acidanthera/NVMeFix](https://github.com/acidanthera/NVMeFix) |
 | USBToolBox + UTBDefault | 1.2.0 / 1.0 | Peta USB | [USBToolBox/kext](https://github.com/USBToolBox/kext) |
-| ForbiddenItlwm | 0.6.0 | Wi-Fi Intel AX211 + AirDrop (AWDL) | [retropineaple/ForbiddenItlwm](https://github.com/retropineaple/ForbiddenItlwm) |
-| S0ixStandby | 0.5.4 | S0ix / Deep Idle | [labrouss/S0ixStandby](https://github.com/labrouss/S0ixStandby) |
+| ForbiddenItlwm | 0.7.0-alpha.4 | Wi-Fi Intel AX211 + AirDrop (AWDL) | [retropineaple/ForbiddenItlwm](https://github.com/retropineaple/ForbiddenItlwm) |
+| S0ixStandby | 0.5.15 | S0ix / Deep Idle (pre-release) | [labrouss/S0ixStandby](https://github.com/labrouss/S0ixStandby) |
 | IntelHybridCores | 0.2.0 | Scheduler P-core / E-core (lisensi MIT) | [rodgod-rr/IntelHybridCores](https://github.com/rodgod-rr/IntelHybridCores) |
 
 Kext di luar EFI (dipasang di sistem, lihat [POST-INSTALL.md](POST-INSTALL.md)):
@@ -38,7 +39,7 @@ Kext di luar EFI (dipasang di sistem, lihat [POST-INSTALL.md](POST-INSTALL.md)):
 | Kext | Versi | Fungsi |
 | --- | --- | --- |
 | WhateverXe Graphics (`AppleIntelTGLCompat` + driver TGL) | 0.8.1 | Driver grafis Apple untuk Iris Xe, dari paket `.pkg` WhateverXe-Graphics |
-| VoodooHDA | 3.6.5 | Audio (speaker, headphone, mic) |
+| VoodooHDA | 3.6.8 | Audio (speaker, headphone, mic) |
 
 ## Kext yang dimodifikasi
 
@@ -48,6 +49,8 @@ Binary di `EFI/OC/Kexts` dibuild dari upstream ditambah patch di folder [`patche
 | --- | --- | --- | --- |
 | VoodooPS2Controller 2.3.8 | [`VoodooPS2-shutfix.patch`](../patches/VoodooPS2-shutfix.patch) | `acidanthera/VoodooPS2@7eab4a3` | Saat **Restart** dari macOS, keyboard mati di BIOS/picker OpenCore. Patch ini mengembalikan state 8042 dan memaksa *full reset* PCH (`outb 0xCF9, 0x0E`), sehingga keyboard dan brightness BIOS kembali normal |
 | VoodooInput 1.1.7 (di dalam VoodooI2C) | [`VoodooInput-jumpfix.patch`](../patches/VoodooInput-jumpfix.patch) | `acidanthera/VoodooInput@d897813` | Rotasi ID transducer + penjaga *teleport* untuk kursor yang melompat. Penyebab utama lompatan ternyata polling SMCDellDDV (sudah diperbaiki di 1.0.5+). Patch ini tetap dipasang karena tidak berefek negatif |
+| WhateverXe 0.8.5 | [`WhateverXe-csb-resync.patch`](../patches/WhateverXe-csb-resync.patch) | `b00t0x/WhateverXe@d965747` | Patch dari brandonedley (commit `a854010`, belum masuk rilis). Menambah boot-arg `-wex-s0-csb-resync`: state CSB execlist GPU disimpan saat masuk Deep Idle lalu disinkronkan lagi saat bangun, tanpa reset GT. Semua tes sleep di laptop ini memakai patch ini |
+| VoodooRMI 1.4.3 | [`VoodooRMI-dwt.patch`](../patches/VoodooRMI-dwt.patch) | `VoodooSMBus/VoodooRMI@83868f0` | *Disable-while-typing* ala libinput. Sentuhan yang **dimulai** dalam 200 ms setelah tombol ditekan (500 ms kalau mengetik beruntun) diabaikan, sehingga tidak jadi tap atau gerakan kursor. Modifier, Tab, Caps Lock, tombol F, dan panah tidak memicu. Sentuhan dilepas kalau dimulai setelah ketikan terakhir dan bergerak lebih dari 1,5 % lebar trackpad. Boot-arg: `-rmidwtoff` (matikan), `rmidwt1=<ms>`, `rmidwt2=<ms>`, `rmidwtmove=<per-mil lebar>` |
 | VoodooGPIO 1.2 | [`VoodooGPIO-tigerlakelp-start.patch`](../patches/VoodooGPIO-tigerlakelp-start.patch) | `VoodooI2C/VoodooGPIO@717ab2a` | Perbaikan `start()` Tiger Lake-LP, supaya jalan di pin controller `INTC1055` (Alder Lake-P) |
 
 ## SMCDellDDV

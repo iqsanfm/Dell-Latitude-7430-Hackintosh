@@ -30,8 +30,9 @@ Isinya sama dengan EFI yang dipakai sehari-hari di laptop ini. Sebelum di-upload
 | macOS | Tahoe 26.7.1 (25G241) |
 | OpenCore | 1.0.8 RELEASE |
 | Lilu | 1.7.3 |
-| WhateverXe | 0.8.3 |
-| ForbiddenItlwm | 0.6.0 |
+| WhateverXe | 0.8.5 + patch `csb-resync` |
+| ForbiddenItlwm | 0.7.0-alpha.4 |
+| S0ixStandby | 0.5.15 |
 
 Daftar lengkap ada di [docs/KEXTS.md](docs/KEXTS.md).
 
@@ -45,7 +46,7 @@ Daftar lengkap ada di [docs/KEXTS.md](docs/KEXTS.md).
 | AirDrop / AWDL | ✅ | Pakai set flag `-itlawdl*` dari ForbiddenItlwm |
 | Bluetooth (termasuk TWS/audio) | ✅ | IntelBluetoothFirmware + BlueToolFixup + BTLEAdvFixup |
 | Audio (speaker, headphone, mic) | ✅ | VoodooHDA di `/Library/Extensions`, **tidak** ada di EFI |
-| Trackpad + gesture | ✅ | VoodooI2C + VoodooRMI |
+| Trackpad + gesture | ✅ | VoodooI2C + VoodooRMI (patch *dwt*: sentuhan tak sengaja saat mengetik diabaikan) |
 | Keyboard | ✅ | VoodooPS2 (patch *shutfix*: keyboard tetap jalan di BIOS/picker setelah Restart) |
 | Baterai | ✅ | SMCBatteryManager |
 | Sensor suhu + RPM kipas | ✅ | SMCProcessor + **SMCDellDDV** (kext buatan sendiri) |
@@ -53,7 +54,7 @@ Daftar lengkap ada di [docs/KEXTS.md](docs/KEXTS.md).
 | Hemat daya idle (S0ix / package C-state) | ✅ | S0ixStandby Deep Idle + SSDT-DEEPIDLE. Opsi BIOS **C-States Control** wajib Enabled |
 | Scheduler P-core / E-core | ✅ | IntelHybridCores (`hcpower=4,2`) |
 | Restart / Shut Down | ✅ | |
-| Sleep (tidur) | ❌ | Dimatikan (`pmset disablesleep 1`): WhateverXe belum mendukung sleep di Alder Lake-P |
+| Sleep (tidur) | 🧪 | **Eksperimental.** Deep Idle + bangun lewat RTC/tombol power sudah jalan tanpa panic, dan dengan spoof CPUID Ice Lake S0ix tercapai 97 %. Sleep lewat tutup lid dan sleep lama belum dites, jadi default tetap dimatikan. Lihat [docs/SLEEP.md](docs/SLEEP.md) |
 | Webcam, HDMI/USB-C display, fingerprint, kartu SD | ❔ | Belum dites |
 
 ## Struktur repo
@@ -62,7 +63,7 @@ Daftar lengkap ada di [docs/KEXTS.md](docs/KEXTS.md).
 EFI/                 EFI siap pakai (BOOT + OC), salin ke partisi EFI
 ACPI-src/            Source .dsl dari semua SSDT di EFI/OC/ACPI
 src/SMCDellDDV/      Source + skrip build kext SMCDellDDV
-patches/             Patch yang dipakai pada kext upstream (VoodooPS2, VoodooInput, VoodooGPIO)
+patches/             Patch yang dipakai pada kext upstream (VoodooPS2, VoodooInput, VoodooGPIO, VoodooRMI, WhateverXe)
 tools/wifi-boot/     LaunchDaemon: nyalakan ulang Wi-Fi kalau firmware gagal start saat boot
 docs/                Dokumentasi
 ```
@@ -88,6 +89,7 @@ docs/                Dokumentasi
 | [docs/ACPI.md](docs/ACPI.md) | SSDT dan patch ACPI |
 | [docs/BOOT-ARGS.md](docs/BOOT-ARGS.md) | Penjelasan setiap boot-arg, plus flag debug opsional |
 | [docs/POST-INSTALL.md](docs/POST-INSTALL.md) | SMBIOS, paket grafis, audio, penjaga Wi-Fi, `pmset` |
+| [docs/SLEEP.md](docs/SLEEP.md) | Status sleep, spoof CPUID Ice Lake, cara mencoba |
 | [docs/MASALAH.md](docs/MASALAH.md) | Masalah yang diketahui dan solusinya |
 
 ## Kredit
