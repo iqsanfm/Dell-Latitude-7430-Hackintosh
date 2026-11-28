@@ -30,9 +30,9 @@ Isinya sama dengan EFI yang dipakai sehari-hari di laptop ini. Sebelum di-upload
 | macOS | Tahoe 26.7.1 (25G241) |
 | OpenCore | 1.0.8 RELEASE |
 | Lilu | 1.7.3 |
-| WhateverXe | 0.8.5 + patch `csb-resync` |
+| WhateverXe | 0.8.6 + patch `csb-resync` |
 | ForbiddenItlwm | 0.7.0-alpha.4 |
-| S0ixStandby | 0.5.15 |
+| S0ixStandby | 0.5.19 |
 
 Daftar lengkap ada di [docs/KEXTS.md](docs/KEXTS.md).
 
@@ -54,7 +54,7 @@ Daftar lengkap ada di [docs/KEXTS.md](docs/KEXTS.md).
 | Hemat daya idle (S0ix / package C-state) | ✅ | S0ixStandby Deep Idle + SSDT-DEEPIDLE. Opsi BIOS **C-States Control** wajib Enabled |
 | Scheduler P-core / E-core | ✅ | IntelHybridCores (`hcpower=4,2`) |
 | Restart / Shut Down | ✅ | |
-| Sleep (tidur) | 🧪 | **Eksperimental.** Deep Idle + bangun lewat RTC/tombol power sudah jalan tanpa panic, dan dengan spoof CPUID Ice Lake S0ix tercapai 97 %. Sleep lewat tutup lid dan sleep lama belum dites, jadi default tetap dimatikan. Lihat [docs/SLEEP.md](docs/SLEEP.md) |
+| Sleep (tidur) | 🧪 | **Eksperimental.** Deep Idle + bangun lewat RTC/tombol power sudah jalan tanpa panic, dan dengan spoof CPUID Ice Lake S0ix tercapai 97–99,9 % (±0,9 W saat sleep 30 menit). Sleep lewat tutup lid dan sleep berjam-jam belum dites, jadi default tetap dimatikan. Lihat [docs/SLEEP.md](docs/SLEEP.md) |
 | Webcam, HDMI/USB-C display, fingerprint, kartu SD | ❔ | Belum dites |
 
 ## Struktur repo
